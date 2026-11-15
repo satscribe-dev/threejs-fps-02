@@ -1,23 +1,60 @@
-// Humanoid bots built from measured human proportions (total height 1.80 m):
-// hips 1.06 (59%), thigh 0.43, calf 0.45, torso 0.48, head Ø 0.23, shoulders ±0.21.
-// Bodies are ROUND (capsule torso, sphere shoulders, tapered-cylinder limbs) —
-// boxes are only for hard gear. Faces have eyes/brows/nose/mouth/glasses.
-// Teams read apart: EMBER = boonie hat + sunglasses + orange armband;
-// SLATE = helmet + balaclava + blue armband.
-// Articulated pivots: neck, shoulders, elbows, hips, knees.
-// Walk / run lean / crouch / aim / shoot kick / hit flinch / timed death fall.
+// Humanoid bots, measured proportions (height 1.80 m). Round bodies,
+// faces, team gear (EMBER boonie/sunglasses, SLATE helmet/balaclava).
+// Pivots: neck, shoulders, elbows, hips, knees. Walk/lean/crouch/aim/kick.
 import * as THREE from '../vendor/three/three.module.min.js';
 import { taperedBox } from './geom.js';
 import { camoTex } from './textures.js';
 
 const SKIN = [0xc68e6a, 0x8a5f43, 0xd9a986, 0x6e4a30];
 function mat(color, rough = .85) { return new THREE.MeshStandardMaterial({ color, roughness: rough }); }
-function nameSprite(name, color) {
+// Two-bone IK: shoulder S + target T in HIPS space -> wrist lands on T.
+// L1=.28, L2=.27. Shoulder orientation via quaternion basis [n,-u,-(nxu)]
+// (rx/rz-only leaves a 12 cm error). Elbow ex=atan2(-vsh.z,-vsh.y).
+const _ikA = new THREE.Vector3(), _ikP = new THREE.Vector3(), _ikE = new THREE.Vector3();
+const _ikM = new THREE.Matrix4();
+const _ikV = new THREE.Vector3(), _ikS = new THREE.Vector3();
+const _ikPoleR = new THREE.Vector3(.3, -1, -.2); // right elbow: down + out + back
+const _ikPoleL = new THREE.Vector3(-.3, -1, 0); // left elbow: down + out
+function solveArm(sh, el, S, T, pole) {
+  const L1 = .28, L2 = .27;
+  _ikA.subVectors(T, S);
+  let dist = _ikA.length();
+  dist = Math.min(dist, L1 + L2 - .001);
+  dist = Math.max(dist, Math.abs(L1 - L2) + .001);
+  _ikA.normalize();
+  _ikP.copy(pole).addScaledVector(_ikA, -pole.dot(_ikA)).normalize();
+  const cosA = (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist);
+  const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+  _ikE.copy(_ikA).multiplyScalar(cosA).addScaledVector(_ikP, sinA).multiplyScalar(L1).add(S);
+  const ux = (_ikE.x - S.x) / L1, uy = (_ikE.y - S.y) / L1, uz = (_ikE.z - S.z) / L1;
+  const vx = (T.x - _ikE.x) / L2, vy = (T.y - _ikE.y) / L2, vz = (T.z - _ikE.z) / L2;
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+  const cx = ny * uz - nz * uy, cy = nz * ux - nx * uz, cz = nx * uy - ny * ux;
+  _ikM.makeBasis(
+    new THREE.Vector3(nx, ny, nz),
+    new THREE.Vector3(-ux, -uy, -uz),
+    new THREE.Vector3(-cx, -cy, -cz));
+  sh.quaternion.setFromRotationMatrix(_ikM);
+  const vshX = nx * vx + ny * vy + nz * vz;
+  const vshY = -(ux * vx + uy * vy + uz * vz);
+  const vshZ = -(cx * vx + cy * vy + cz * vz);
+  el.rotation.set(Math.atan2(-vshZ, -vshY), 0, 0);
+}
+
+function nameSprite(name, color) {  // Nameplate: dark pill + bright text. A bare transparent canvas renders as
+  // a SOLID BLACK quad through the EffectComposer post chain (verified: hiding
+  // the tags removes the black bar above the bot's head in the duel hero).
+  // Drawing an explicit pill makes the tag a deliberate readable element.
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
   const g = c.getContext('2d');
-  g.font = 'bold 34px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = 'rgba(0,0,0,.9)'; g.shadowBlur = 6; g.fillStyle = color;
-  g.fillText(name, 128, 32);
+  g.clearRect(0, 0, 256, 64);
+  g.font = 'bold 38px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const tw = Math.min(220, g.measureText(name).width + 36);
+  g.fillStyle = 'rgba(10,10,14,0.85)';
+  g.fillRect(128 - tw / 2, 8, tw, 48);
+  g.fillStyle = '#ffffff';
+  g.fillText(name, 128, 33);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
   s.scale.set(1.5, .38, 1); return s;
@@ -54,9 +91,9 @@ export function buildBot(opts) {
   const torso = new THREE.Mesh(new THREE.CylinderGeometry(.17, .15, .42, 14), mJacket);
   torso.position.y = .24; torso.castShadow = true; hips.add(torso);
   const chest = new THREE.Mesh(new THREE.SphereGeometry(.17, 14, 12), mJacket);
-  chest.scale.set(1.25, .8, .9); chest.position.y = .42; chest.castShadow = true; hips.add(chest);
+  chest.scale.set(1.35, .85, .95); chest.position.y = .42; chest.castShadow = true; hips.add(chest);
   for (const sx of [-1, 1]) {
-    const sh = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), mJacket);
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(.105, 10, 8), mJacket);
     sh.position.set(sx * .21, .44, 0); sh.castShadow = true; hips.add(sh);
   }
   // vest plates front/back + pouches + radio + backpack
@@ -80,37 +117,37 @@ export function buildBot(opts) {
   const neck = new THREE.Group(); neck.position.y = .5; hips.add(neck);
   const neckM = new THREE.Mesh(new THREE.CylinderGeometry(.06, .07, .1, 8), mSkin);
   neckM.position.y = .03; neck.add(neckM);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.125, 16, 12), mSkin);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), mSkin);
   head.position.y = .14; head.scale.set(1, 1.15, 1.05); head.castShadow = true; neck.add(head);
-  // ---- FACE (front = +z): eyes, brows, nose, mouth, glasses
+  // ---- FACE (front = +z): eyes, brows, nose, mouth, glasses (pushed out .015 for the bigger head)
   for (const sx of [-1, 1]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(.02, 8, 6), mWhite);
-    eye.position.set(sx * .045, .165, .108); neck.add(eye);
+    eye.position.set(sx * .05, .165, .123); neck.add(eye);
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(.009, 8, 6), mPupil);
-    pupil.position.set(sx * .045, .165, .125); neck.add(pupil);
+    pupil.position.set(sx * .05, .165, .14); neck.add(pupil);
     const brow = new THREE.Mesh(new THREE.BoxGeometry(.05, .009, .012), mPupil);
-    brow.position.set(sx * .045, .195, .112); brow.rotation.z = sx * -.12; neck.add(brow);
+    brow.position.set(sx * .05, .195, .127); brow.rotation.z = sx * -.12; neck.add(brow);
   }
   const nose = new THREE.Mesh(new THREE.BoxGeometry(.022, .04, .022), mSkin);
-  nose.position.set(0, .13, .12); neck.add(nose);
+  nose.position.set(0, .13, .135); neck.add(nose);
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(.05, .008, .01), mPupil);
-  mouth.position.set(0, .08, .114); neck.add(mouth);
+  mouth.position.set(0, .08, .129); neck.add(mouth);
   const glasses = new THREE.Mesh(new THREE.BoxGeometry(.17, .05, .02), mGlass);
-  glasses.position.set(0, .165, .116); neck.add(glasses);
+  glasses.position.set(0, .165, .131); neck.add(glasses);
   if (team === 'slate') {
     // balaclava: lower-face band, eyes stay visible
-    const bala = new THREE.Mesh(new THREE.SphereGeometry(.135, 14, 10, 0, Math.PI * 2, Math.PI * .35, Math.PI * .5), mat(0x23282c, .95));
+    const bala = new THREE.Mesh(new THREE.SphereGeometry(.15, 14, 10, 0, Math.PI * 2, Math.PI * .35, Math.PI * .5), mat(0x23282c, .95));
     bala.position.y = .14; neck.add(bala);
     // helmet: dome + brim + back cover
-    const helm = new THREE.Mesh(new THREE.SphereGeometry(.14, 14, 10, 0, Math.PI * 2, 0, Math.PI * .55), mHelmet);
+    const helm = new THREE.Mesh(new THREE.SphereGeometry(.155, 14, 10, 0, Math.PI * 2, 0, Math.PI * .55), mHelmet);
     helm.position.y = .17; helm.castShadow = true; neck.add(helm);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.155, .16, .03, 14), mHelmet);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.17, .175, .03, 14), mHelmet);
     brim.position.y = .185; neck.add(brim);
   } else {
     // boonie hat: crown + wide brim, tan
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(.135, .15, .07, 14), mHelmet);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(.15, .165, .07, 14), mHelmet);
     crown.position.y = .235; crown.castShadow = true; neck.add(crown);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.22, .225, .02, 16), mHelmet);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.235, .24, .02, 16), mHelmet);
     brim.position.y = .2; neck.add(brim);
   }
   // arms: shoulder pivot at (±.23, 1.48) -> in hips space y=.42
@@ -126,15 +163,23 @@ export function buildBot(opts) {
     pad.position.set(0, -.01, .04); el.add(pad);
     const fo = new THREE.Mesh(new THREE.CylinderGeometry(.075, .065, .25, 10), mJacket);
     fo.position.y = -.125; fo.castShadow = true; el.add(fo);
-    const hand = new THREE.Group(); hand.position.y = -.27; el.add(hand);
+    const hand = new THREE.Group(); hand.position.y = -.27; hand.scale.setScalar(1.7); el.add(hand);
     const palm = new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .04), mGlove);
     palm.castShadow = true; hand.add(palm);
-    // gloved fingers: 4 small boxes with gaps (readable at close range)
+    // gloved fingers: 2-segment HOOKS curling toward the palm (+z) so the
+    // wrap reads at 2.5 m. Oversized (scale 1.7, thick segments) on purpose.
     for (let i = 0; i < 4; i++) {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(.014, .05, .014), mGlove);
+      const f = new THREE.Group();
       f.position.set(-.024 + i * .016, -.07, 0); hand.add(f);
+      const s1 = new THREE.Mesh(new THREE.BoxGeometry(.032, .05, .032), mGlove);
+      s1.position.y = -.025; f.add(s1);
+      const j = new THREE.Group(); j.position.y = -.05; j.rotation.x = -1.1; f.add(j);
+      const s2 = new THREE.Mesh(new THREE.BoxGeometry(.03, .045, .03), mGlove);
+      s2.position.y = -.022; j.add(s2);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(.015, 8, 6), mGlove);
+      tip.position.y = -.045; j.add(tip);
     }
-    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.014, .04, .014), mGlove);
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.02, .055, .02), mGlove);
     thumb.position.set(side * .045, -.03, .01); thumb.rotation.z = side * .5; hand.add(thumb);
     return { sh, el, hand };
   }
@@ -173,12 +218,24 @@ export function buildBot(opts) {
   fgrip.position.set(0, -.09, .34); fgrip.rotation.x = .15; rifle.add(fgrip);
   const mag = new THREE.Mesh(taperedBox(.05, .035, .035, .025, .2), rMat);
   mag.position.set(0, -.13, .08); mag.rotation.x = .12; rifle.add(mag);
-  const stock = new THREE.Mesh(taperedBox(.06, .09, .045, .06, .22), rWood);
-  stock.position.set(0, -.02, -.34); rifle.add(stock);
+  // pistol grip (right hand): just behind the mag well, near the stock.
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(.05, .13, .06), rWood);
+  grip.position.set(0, -.16, -.05); grip.rotation.x = .3; rifle.add(grip);
+  const stockBody = new THREE.Mesh(new THREE.BoxGeometry(.055, .08, .2), rWood);
+  stockBody.position.set(0, -.02, -.33); rifle.add(stockBody);
+  const buttPad = new THREE.Mesh(new THREE.BoxGeometry(.06, .1, .025), rMat);
+  buttPad.position.set(0, -.02, -.44); rifle.add(buttPad);
   const sight = new THREE.Mesh(new THREE.BoxGeometry(.04, .05, .1), rMat);
   sight.position.set(0, .085, .05); rifle.add(sight);
   const sling = new THREE.Mesh(new THREE.BoxGeometry(.02, .02, .5), mDark);
   sling.position.set(-.05, -.06, .05); sling.rotation.x = .1; rifle.add(sling);
+  // SOCKETS (spec 00:51 WIB): gripPoint (right hand), supportPoint (left
+  // hand), muzzlePoint, ejectPoint. Wrists must touch these (test: <=2 cm).
+  const socks = {};
+  for (const [k, p] of Object.entries({
+    gripPoint: [0, -.16, -.05], supportPoint: [0, -.05, .22],
+    muzzlePoint: [0, .02, .60], ejectPoint: [.04, 0, 0],
+  })) { const o = new THREE.Object3D(); o.position.set(p[0], p[1], p[2]); rifle.add(o); socks[k] = o; }
   rifle.position.set(.05, 1.34, .26); rifle.rotation.y = -.35; rifle.rotation.x = .06;
   body.add(rifle);
   // name tag above head
@@ -186,7 +243,7 @@ export function buildBot(opts) {
   tag.position.y = 2.02; body.add(tag);
 
   const bot = {
-    root, hips, neck, armL, armR, legL, legR, rifle, tag,
+    root, hips, neck, armL, armR, legL, legR, rifle, tag, socks,
     name: opts.name, team, hp: 100, alive: true, phase: 0, walkSpeed: 0,
     crouch: 0, // 0..1
     aiming: 0,
@@ -200,15 +257,23 @@ export function buildBot(opts) {
     update(dt, t) {
       const s = Math.sin(t * 9) * .55 * this.walkSpeed;
       const c = Math.cos(t * 9) * .55 * this.walkSpeed;
-      this.legL.hip.rotation.x = s; this.legR.hip.rotation.x = -s;
-      this.legL.knee.rotation.x = Math.max(0, -c) * .9 + this.crouch * .9;
-      this.legR.knee.rotation.x = Math.max(0, c) * .9 + this.crouch * .9;
+      const kneel = this.crouch; // kneel at cover: right knee down, left leg braced
+      this.legL.hip.rotation.x = s * (1 - kneel) - kneel * .5;
+      this.legR.hip.rotation.x = -s * (1 - kneel) - kneel * 1.1;
+      this.legL.knee.rotation.x = Math.max(0, -c) * .9 * (1 - kneel) + kneel * .5;
+      this.legR.knee.rotation.x = Math.max(0, c) * .9 * (1 - kneel) + kneel * 1.4;
       const run = this.walkSpeed > .7 ? 1 : 0;
       if (this.aiming) {
-        // aim pose: both arms forward holding the rifle, no walk swing
-        this.armL.sh.rotation.x = -1.25; this.armR.sh.rotation.x = -1.15;
-        this.armL.el.rotation.x = -.5; this.armR.el.rotation.x = -.35;
-        this.armL.sh.rotation.z = .12; this.armR.sh.rotation.z = -.12;
+        // aim pose: both arms forward holding the rifle, no walk swing.
+        // Shoulders swing INWARD (z .43) so the hands reach the rifle's
+        // centreline; LEFT arm straighter so the hand reaches the handguard
+        // rear (probe-grip: fgrip at z=.34 is out of reach, 23 cm gap).
+        // RIGHT arm bent (REF-2 AK pose): 2-link IK — shoulder->grip needs
+        // drop .234 + forward .322 at dist .449; elbow ~70 deg (1.23 rad),
+        // shoulder forward + inward so the hand lands ON the grip, not beside it.
+        this.armL.sh.rotation.x = -1.4; this.armR.sh.rotation.x = -.45;
+        this.armL.el.rotation.x = -.25; this.armR.el.rotation.x = -1.35;
+        this.armL.sh.rotation.z = .34; this.armR.sh.rotation.z = -.60;
       } else {
         // arms swing opposite the legs while walking; left holds foregrip
         this.armL.sh.rotation.x = -.9 - s * .25; this.armR.sh.rotation.x = -.75 + s * .25;
@@ -217,12 +282,40 @@ export function buildBot(opts) {
       }
       this.flinch = Math.max(0, this.flinch - dt * 3);
       this.kick = Math.max(0, this.kick - dt * 5);
-      this.hips.position.y = 1.06 - this.crouch * .3 + Math.abs(Math.sin(t * 9)) * .03 * this.walkSpeed;
-      this.hips.rotation.x = this.crouch * .25 + run * .12 - this.flinch * .35;
+      this.hips.position.y = 1.06 - this.crouch * .42 + Math.abs(Math.sin(t * 9)) * .03 * this.walkSpeed;
+      // lean forward when aiming, deeper lean when kneeling
+      this.hips.rotation.x = this.crouch * .35 + run * .12 - this.flinch * .35 + this.aiming * .08;
       this.neck.rotation.x = this.flinch * .25;
-      // shoot kick: rifle jumps back, shoulders rise
-      this.rifle.position.z = .26 + this.kick * .07;
-      this.rifle.rotation.x = .06 - this.kick * .18;
+      // shoot kick: rifle jumps back, shoulders rise.
+      // AIM pose: rifle forward + straight (stock at shoulder, grip at right
+      // hand, handguard at left hand) — probe-grip: the old carry pose left a
+      // 29 cm hand-to-grip gap and a 27 cm stock-to-shoulder gap.
+      // CARRY pose: rifle across the chest.
+      if (this.aiming) {
+        // Rifle pulled BACK to the chest (z .45->.28): the handguard at
+        // z=.45 was 70 cm from the left shoulder (arm reach .55 m). At
+        // z=.28 the supportPoint is .546 m out (reachable), stock at shoulder.
+        this.rifle.position.set(0, 1.41, .25 + this.kick * .07);
+        this.rifle.rotation.set(0 - this.kick * .18, -.12, 0);
+      } else {
+        this.rifle.position.set(.05, 1.34, .26 + this.kick * .07);
+        this.rifle.rotation.set(.06 - this.kick * .18, -.35, 0);
+      }
+      // Two-bone IK (spec 00:51 WIB): wrists land EXACTLY on the rifle
+      // sockets — overrides the seed arm angles above. Runs after rifle +
+      // hips are posed (updateMatrixWorld makes socket positions current).
+      if (this.aiming && !this.dying) {
+        this.root.updateMatrixWorld(true);
+        _ikV.set(0, 0, 0);
+        this.socks.gripPoint.getWorldPosition(_ikV);
+        this.hips.worldToLocal(_ikV);
+        _ikS.set(.23, .42, 0);
+        solveArm(this.armR.sh, this.armR.el, _ikS, _ikV, _ikPoleR);
+        this.socks.supportPoint.getWorldPosition(_ikV);
+        this.hips.worldToLocal(_ikV);
+        _ikS.set(-.23, .42, 0);
+        solveArm(this.armL.sh, this.armL.el, _ikS, _ikV, _ikPoleL);
+      }
       // timed death fall (0.5 s ease-out, then settle)
       if (this.dying) {
         this.dyingT += dt;
@@ -236,7 +329,8 @@ export function buildBot(opts) {
     },
     setAim(on) {
       this.aiming = on ? 1 : 0;
-      this.rifle.position.set(.05, 1.36, .24); this.rifle.rotation.x = -.02;
+      if (on) { this.rifle.position.set(0, 1.41, .25); this.rifle.rotation.set(0, -.12, 0); }
+      else { this.rifle.position.set(.05, 1.34, .26); this.rifle.rotation.set(.06, -.35, 0); }
     },
     hit() { this.flinch = 1; },
     shootKick() { this.kick = 1; },

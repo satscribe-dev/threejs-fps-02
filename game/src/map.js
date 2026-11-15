@@ -2,7 +2,7 @@
 // boxcar row (Site B), mid container stack + gantry crane, three lanes.
 // Static geometry is merged per material (few draw calls); collision AABBs exported.
 import * as THREE from '../vendor/three/three.module.min.js';
-import { brickTex, cobbleTex, concreteTex, metalTex, woodTex, hazardTex, stencilTex, graffitiTex, ballastTex, skyTex } from './textures.js';
+import { brickTex, cobbleMaps, concreteTex, metalTex, woodTex, hazardTex, stencilTex, graffitiTex, ballastTex, skyTex, puddleTex, stainTex } from './textures.js';
 import { mergeGeoms, boxOf } from './geom.js';
 
 export const MAP = { w: 64, d: 48 }; // x: -32..32, z: -24..24
@@ -37,8 +37,9 @@ export function buildMap(scene) {
   const brickDark = new THREE.MeshStandardMaterial({ map: brickTex('#6e3a2a'), roughness: .95 });
   const concrete = new THREE.MeshStandardMaterial({ map: concreteTex(), roughness: .95 });
   const concrete2 = new THREE.MeshStandardMaterial({ map: concreteTex('#7a7268'), roughness: .95 });
-  const cobble = new THREE.MeshStandardMaterial({ map: cobbleTex(), roughness: .96 });
-  cobble.map.repeat.set(10, 7);
+  const cm = cobbleMaps();
+  const cobble = new THREE.MeshStandardMaterial({ map: cm.map, roughnessMap: cm.rough, bumpMap: cm.map, bumpScale: .02, roughness: 1 });
+  cm.map.repeat.set(10, 7); cm.rough.repeat.set(10, 7);
   const ballast = new THREE.MeshStandardMaterial({ map: ballastTex(), roughness: 1 });
   ballast.map.repeat.set(12, 8);
   const metalGreen = new THREE.MeshStandardMaterial({ map: metalTex('#4a5d52'), roughness: .6, metalness: .45 });
@@ -58,6 +59,17 @@ export function buildMap(scene) {
   const bedN = new THREE.Mesh(new THREE.PlaneGeometry(60, 4.4), ballast);
   bedN.rotation.x = -Math.PI / 2; bedN.position.set(0, .01, -6); bedN.receiveShadow = true; scene.add(bedN);
   const bedS = bedN.clone(); bedS.position.z = 6; scene.add(bedS);
+  // puddle + oil-stain decals (reflective water, dark stains)
+  const puddleMat = new THREE.MeshPhysicalMaterial({ map: puddleTex(), transparent: true, opacity: .65, roughness: .05, metalness: .1, envMapIntensity: 1.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const stainMat = new THREE.MeshStandardMaterial({ map: stainTex(), transparent: true, roughness: .35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  for (const [x, z, s] of [[6, 2, 3.4], [-14, 8, 2.6], [18, -2, 2.8], [-4, -14, 2.2]]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(s, s * .8), puddleMat);
+    p.rotation.x = -Math.PI / 2; p.rotation.z = Math.random() * 3; p.position.set(x, .02, z); p.receiveShadow = true; scene.add(p);
+  }
+  for (const [x, z, s] of [[-8, -12, 2.6], [12, 14, 3.2], [0, -2, 2.2], [24, -10, 2.8]]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(s, s * .8), stainMat);
+    p.rotation.x = -Math.PI / 2; p.rotation.z = Math.random() * 3; p.position.set(x, .025, z); p.receiveShadow = true; scene.add(p);
+  }
 
   // ---- rails (two lines): sleepers + steel rails
   for (const zc of [-6, 6]) {
@@ -269,6 +281,55 @@ export function buildMap(scene) {
     const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1.1), steelDark);
     arm.position.set(x, 4.6, z + .5); scene.add(arm);
   }
+
+  // ---- floodlight towers (tall, 3-head banks + visible light cones)
+  const floodMat = new THREE.MeshStandardMaterial({ color: 0xffe6b0, emissive: 0xffd080, emissiveIntensity: 2.6 });
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: .03, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  for (const [x, z, ry] of [[-28, 18, .5], [28, -18, -2.6]]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(.12, .16, 8, 8), steelDark);
+    post.position.set(x, 4, z); post.castShadow = true; scene.add(post);
+    for (const off of [-.7, 0, .7]) {
+      const head = new THREE.Mesh(new THREE.BoxGeometry(.6, .25, .35), floodMat);
+      head.position.set(x + Math.cos(ry) * off, 8.1, z - Math.sin(ry) * off);
+      head.rotation.y = ry; scene.add(head);
+    }
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.0, 7.6, 16, 1, true), coneMat);
+    cone.position.set(x + Math.cos(ry) * 1.2, 4.1, z - Math.sin(ry) * 1.2);
+    cone.rotation.z = -.22 * Math.cos(ry); cone.rotation.x = .22 * Math.sin(ry);
+    scene.add(cone);
+    colliders.push(boxOf(x, 0, z, .4, 8, .4));
+  }
+  // ---- cables: sagging tubes between lamp poles
+  function cable(x1, z1, x2, z2) {
+    const a = new THREE.Vector3(x1, 4.5, z1), b = new THREE.Vector3(x2, 4.5, z2);
+    const mid = a.clone().lerp(b, .5); mid.y = 3.6;
+    const curve = new THREE.CatmullRomCurve3([a, mid, b]);
+    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, .02, 5), steelDark);
+    scene.add(m);
+  }
+  cable(-22, -10, 0, 0); cable(0, 0, 20, 10); cable(-28, 0, 28, 0);
+  // ---- distant container stacks OUTSIDE the walls (silhouettes above the wall tops, fogged for depth)
+  function distant(x, z, ry, bucket, y = 0) {
+    add(bucket, new THREE.BoxGeometry(6, 2.6, 2.6), x, y + 1.3, z, ry);
+  }
+  for (const [x, b] of [[-20, 'metalRust'], [0, 'metalBlue'], [20, 'metalRed']]) {
+    distant(x, -30, 0, b, 0); distant(x, -30, 0, b, 2.6); distant(x, -30, 0, b, 5.2);
+  }
+  for (const [z, b] of [[-12, 'metalBlue'], [12, 'metalRust']]) {
+    distant(38, z, Math.PI / 2, b, 0); distant(38, z, Math.PI / 2, b, 2.6); distant(38, z, Math.PI / 2, b, 5.2);
+  }
+  // ---- barbed wire coils along the north + south wall tops (helix tubes)
+  function barbedWire(z, len) {
+    const pts = [];
+    const turns = Math.floor(len / .6), n = turns * 6;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, a = t * turns * Math.PI * 2;
+      pts.push(new THREE.Vector3(-len / 2 + t * len, 5.62 + Math.sin(a) * .16, z + Math.cos(a) * .16));
+    }
+    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n, .015, 5, false), steelDark);
+    scene.add(m);
+  }
+  barbedWire(-24, 56); barbedWire(24, 56);
 
   // ---- sky dome + fog handled in main; return data
   return {

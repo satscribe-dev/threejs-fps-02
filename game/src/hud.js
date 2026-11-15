@@ -11,7 +11,9 @@ export class HUD {
       <div class="tb-mid"><div class="tb-time" id="roundTime">1:40</div><div class="tb-round" id="roundLabel">ROUND 1 OF 12</div><div class="tb-obj" id="objective">PLANT AT SITE A</div></div>
       <div class="tb-team slate"><span class="tb-pips" id="pipsS"></span><span class="tb-score" id="scoreS">0</span><span class="tb-name">SLATE</span></div>`;
     this.el.minimap = mk('div', 'minimap', root);
-    this.el.minimap.innerHTML = `<canvas id="mm" width="176" height="132"></canvas><div class="mm-label">CINDERLINE YARD</div>`;
+    this.el.minimap.innerHTML = `<canvas id="mm" width="176" height="176"></canvas>`;
+    this.el.mmlabel = mk('div', 'mm-label', root);
+    this.el.mmlabel.textContent = 'CINDERLINE YARD';
     this.mm = this.el.minimap.querySelector('#mm').getContext('2d');
     this.el.killfeed = mk('div', 'killfeed', root);
     this.el.radio = mk('div', 'radio', root);
@@ -151,34 +153,74 @@ export class HUD {
     if (show) this.el.end.innerHTML = `<div class="end-card"><h2>${title}</h2><div>${sub}</div><button onclick="location.reload()">↻ PLAY AGAIN</button></div>`;
   }
   drawMinimap(player, allies, enemies, bombSite, planted) {
-    const g = this.mm, W = 176, H = 132;
-    g.clearRect(0, 0, W, H);
-    g.fillStyle = 'rgba(16,20,24,.88)'; g.fillRect(0, 0, W, H);
-    const sx = W / 64, sz = H / 48, X = x => (x + 32) * sx, Z = z => (z + 24) * sz;
-    // ground
-    g.fillStyle = '#2c2f33'; g.fillRect(2, 2, W - 4, H - 4);
-    // rails
-    g.strokeStyle = '#8a7a55'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(0, Z(-6)); g.lineTo(W, Z(-6)); g.moveTo(0, Z(6)); g.lineTo(W, Z(6)); g.stroke();
-    // walls / cover
-    g.fillStyle = '#565b60';
-    for (const r of this.map.wallRects) g.fillRect(X(r.x - r.w / 2), Z(r.z - r.d / 2), Math.max(2, r.w * sx), Math.max(2, r.d * sz));
-    // water tower
-    g.fillStyle = '#b0483a'; g.beginPath(); g.arc(X(-22), Z(-14), 5, 0, 7); g.fill();
-    // sites
-    g.font = 'bold 13px Arial'; g.textAlign = 'center';
-    g.fillStyle = '#ffd23e'; g.fillText('A', X(-22), Z(-11) + 4);
-    g.fillText('B', X(20), Z(11) + 4);
-    if (planted) { g.fillStyle = '#ff5a3c'; g.beginPath(); g.arc(X(bombSite.x), Z(bombSite.z), 4, 0, 7); g.fill(); }
-    // dots
-    const dot = (x, z, col, r = 3) => { g.fillStyle = col; g.beginPath(); g.arc(X(x), Z(z), r, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.6)'; g.stroke(); };
-    for (const b of allies) if (b.alive) dot(b.pos.x, b.pos.z, '#7ee787');
-    for (const b of enemies) if (b.alive && b.seenT > 0) dot(b.pos.x, b.pos.z, '#ff5a3c');
-    // player arrow
+    // ROUND rotating minimap: circle clip + ring, the world rotates so the
+    // player's view direction is always up, player arrow fixed at the centre,
+    // FOV cone, edge fade, north marker on the rim.
+    const g = this.mm, S = 176, C = S / 2, R = C - 3;
+    g.clearRect(0, 0, S, S);
+    g.save();
+    g.beginPath(); g.arc(C, C, R, 0, 7); g.clip();
+    g.fillStyle = '#23262b'; g.fillRect(0, 0, S, S);
     if (player) {
-      g.save(); g.translate(X(player.pos.x), Z(player.pos.z)); g.rotate(-player.yaw);
-      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(0, -6); g.lineTo(4.5, 5); g.lineTo(-4.5, 5); g.closePath(); g.fill(); g.restore();
+      const yaw = player.yaw, k = 3.1; // px per world unit (zoomed local view)
+      const px = player.pos.x, pz = player.pos.z;
+      g.save();
+      g.translate(C, C);
+      g.rotate(yaw); // forward (-sin yaw, -cos yaw) maps to canvas up
+      const X = x => (x - px) * k, Z = z => (z - pz) * k;
+      // FOV cone (under the dots, over the ground)
+      g.fillStyle = 'rgba(255,214,110,.14)';
+      g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, -Math.PI / 2 - .48, -Math.PI / 2 + .48); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(255,214,110,.35)'; g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(0, 0); g.lineTo(Math.sin(.48) * R, -Math.cos(.48) * R);
+      g.moveTo(0, 0); g.lineTo(-Math.sin(.48) * R, -Math.cos(.48) * R);
+      g.stroke();
+      // rails
+      g.strokeStyle = '#8a7a55'; g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(X(-32), Z(-6)); g.lineTo(X(32), Z(-6));
+      g.moveTo(X(-32), Z(6)); g.lineTo(X(32), Z(6));
+      g.stroke();
+      // walls / cover
+      g.fillStyle = '#5a5f66';
+      for (const r of this.map.wallRects) g.fillRect(X(r.x - r.w / 2), Z(r.z - r.d / 2), Math.max(2, r.w * k), Math.max(2, r.d * k));
+      // water tower
+      g.fillStyle = '#b0483a'; g.beginPath(); g.arc(X(-22), Z(-14), 5, 0, 7); g.fill();
+      // sites
+      g.font = 'bold 13px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#ffd23e';
+      g.fillText('A', X(-22), Z(-11));
+      g.fillText('B', X(20), Z(11));
+      if (planted) { g.fillStyle = '#ff5a3c'; g.beginPath(); g.arc(X(bombSite.x), Z(bombSite.z), 4, 0, 7); g.fill(); }
+      // dots
+      const dot = (x, z, col, r = 3.5) => {
+        g.fillStyle = col; g.beginPath(); g.arc(X(x), Z(z), r, 0, 7); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,.65)'; g.lineWidth = 1; g.stroke();
+      };
+      for (const b of allies) if (b.alive) dot(b.pos.x, b.pos.z, '#7ee787');
+      for (const b of enemies) if (b.alive && b.seenT > 0) dot(b.pos.x, b.pos.z, '#ff5a3c');
+      g.restore();
+      // edge fade (inside the clip, over the map)
+      const grad = g.createRadialGradient(C, C, R * .55, C, C, R);
+      grad.addColorStop(0, 'rgba(8,10,12,0)');
+      grad.addColorStop(1, 'rgba(8,10,12,.85)');
+      g.fillStyle = grad; g.fillRect(0, 0, S, S);
+      // player arrow (centre, always pointing up = view direction)
+      g.fillStyle = '#fff';
+      g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(C, C - 8); g.lineTo(C + 5.5, C + 6); g.lineTo(C - 5.5, C + 6); g.closePath(); g.fill(); g.stroke();
+      // north marker on the rim (rotates with the view)
+      g.font = 'bold 11px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = 'rgba(255,255,255,.75)';
+      g.fillText('N', C + Math.sin(yaw) * (R - 10), C - Math.cos(yaw) * (R - 10));
     }
+    g.restore();
+    // ring
+    g.beginPath(); g.arc(C, C, R, 0, 7);
+    g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 2; g.stroke();
+    g.beginPath(); g.arc(C, C, R + 1.5, 0, 7);
+    g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1; g.stroke();
   }
 }
 function clamp0(v) { return Math.max(0, Math.min(100, v)); }

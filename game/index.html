@@ -28,9 +28,9 @@
   .tb-round { font-size:10px; letter-spacing:1px; color:#cbb98f; }
   .tb-obj { font-size:10px; letter-spacing:1px; color:#ffb224; font-weight:700; }
   /* minimap */
-  .minimap { position:absolute; top:12px; left:12px; border:2px solid rgba(255,255,255,.25); border-radius:4px; overflow:hidden; background:rgba(10,12,14,.8); }
+  .minimap { position:absolute; top:12px; left:12px; width:176px; height:176px; border:2px solid rgba(255,255,255,.4); border-radius:50%; overflow:hidden; background:rgba(10,12,14,.85); box-shadow:0 0 0 3px rgba(0,0,0,.45), 0 2px 14px rgba(0,0,0,.5); }
   .minimap canvas { display:block; }
-  .mm-label { font-size:10px; letter-spacing:2px; padding:3px 6px; background:rgba(0,0,0,.55); color:#d8cdb4; }
+  .mm-label { position:absolute; top:194px; left:12px; width:176px; text-align:center; font-size:10px; letter-spacing:2px; padding:3px 0; background:rgba(0,0,0,.55); color:#d8cdb4; }
   /* killfeed */
   .killfeed { position:absolute; top:12px; right:12px; display:flex; flex-direction:column; gap:5px; align-items:flex-end; }
   .kf { background:rgba(12,14,18,.78); border:1px solid rgba(255,255,255,.14); padding:5px 10px; border-radius:3px; font-size:13px; transition:opacity .6s; }

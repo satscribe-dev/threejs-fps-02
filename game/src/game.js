@@ -112,12 +112,23 @@ export class Game {
       m.visible = false; this.scene.add(m);
       this.decals.push({ m, life: 0 });
     }
-    // dust points pool
+    // dust points pool — FIX (NOTES.md): the translucent rectangle was this pool.
+    // Unspawned points used to sit at world origin (0,0,0) at opacity .7, and a
+    // shot's impact cloud 1 m from the lens rendered as hard squares. Now: all
+    // points start at y=-10, the material has a soft radial sprite (round puffs,
+    // not squares), size .09, and spawns are clamped >=1.5 m from the camera.
+    const duc = document.createElement('canvas'); duc.width = duc.height = 64;
+    const dug = duc.getContext('2d');
+    const dugr = dug.createRadialGradient(32, 32, 2, 32, 32, 30);
+    dugr.addColorStop(0, 'rgba(255,255,255,.9)'); dugr.addColorStop(.6, 'rgba(255,255,255,.4)'); dugr.addColorStop(1, 'rgba(255,255,255,0)');
+    dug.fillStyle = dugr; dug.fillRect(0, 0, 64, 64);
+    const dustTex = new THREE.CanvasTexture(duc);
     this.dustGeo = new THREE.BufferGeometry();
     this.dustPos = new Float32Array(240 * 3);
+    for (let i = 0; i < 240; i++) this.dustPos[i * 3 + 1] = -10;
     this.dustVel = [];
     this.dustGeo.setAttribute('position', new THREE.BufferAttribute(this.dustPos, 3));
-    this.dustMat = new THREE.PointsMaterial({ color: 0xb8a88a, size: .14, transparent: true, opacity: .7, depthWrite: false });
+    this.dustMat = new THREE.PointsMaterial({ color: 0xb8a88a, size: .09, map: dustTex, transparent: true, opacity: .7, depthWrite: false, alphaTest: .01 });
     this.dustPts = new THREE.Points(this.dustGeo, this.dustMat);
     this.dustPts.frustumCulled = false; this.scene.add(this.dustPts);
     this.dustLife = 0;
@@ -203,6 +214,7 @@ export class Game {
     const p = this.player;
     if (!p.weapons[key] || p.cur === key) return;
     p.cur = key; this.reloadT = 0; this.vm.reloadT = 0;
+    this.vm.setWeapon(key);
     this.audio.click(); this.refreshHud();
   }
   startReload() {
@@ -383,6 +395,11 @@ export class Game {
     d.m.rotation.z = Math.random() * 6;
   }
   spawnDust(x, y, z, n) {
+    // keep the cloud >=1.5 m from the lens (a cloud 1 m out reads as a rectangle)
+    const cx = this.camera.position.x, cy = this.camera.position.y, cz = this.camera.position.z;
+    const dx = x - cx, dy = y - cy, dz = z - cz;
+    const d = Math.hypot(dx, dy, dz);
+    if (d < 1.5 && d > 1e-6) { const k = 1.5 / d; x = cx + dx * k; y = cy + dy * k; z = cz + dz * k; }
     for (let i = 0; i < n; i++) {
       const idx = (Math.random() * 240) | 0;
       this.dustPos[idx * 3] = x; this.dustPos[idx * 3 + 1] = y; this.dustPos[idx * 3 + 2] = z;
@@ -548,11 +565,11 @@ export class Game {
       });
       this.hud.showBuy(true, 14);
     } else if (s === 'duel') {
-      // face-to-face: player south of enemy, both facing each other
-      // 4 m apart so the face reads at 720p (was 6 m: face ~12 px, unreadable)
-      this.player.pos.set(2, 0, 7); this.player.yaw = 0; this.player.pitch = 0;
+      // HERO SHOT: face-to-face at 2.5 m, camera slightly low (pitch +.05, looking
+      // up at the enemy) so helmet + glasses + vest + rifle read at 720p.
+      this.player.pos.set(2, 0, 7); this.player.yaw = 0; this.player.pitch = .05;
       const e = this.bots.find(b => b.team === 'slate');
-      e.pos.set(2, 0, 3); e.yaw = Math.PI; e.char.setAim(true);
+      e.pos.set(2, 0, 4.5); e.yaw = Math.PI; e.char.setAim(true);
       this.demoFire = false;
     } else if (s === 'score') {
       this.round = 7; this.scoreE = 4; this.scoreS = 3;
@@ -689,12 +706,19 @@ export class Game {
         if (this.dustPos[i * 3 + 1] < .02) { this.dustPos[i * 3 + 1] = -10; }
       }
       this.dustGeo.attributes.position.needsUpdate = true;
-      this.dustMat.opacity = Math.max(0, this.dustLife / 12) * .7;
+      const dk = Math.max(0, this.dustLife / 12);
+      this.dustMat.opacity = dk * dk * .7; // squared falloff (was linear)
     }
     // bots
     for (const b of this.bots) {
       b.update(dt, this.time);
       if (b.alive && b.target && b.target.isPlayer) this.player.seenT = .1;
+      // name tags only read within 12 m; farther they collapse to an
+      // unreadable black bar above the bot's head (seen in combat v5).
+      // Tags hidden in the duel stage: the tag renders as a solid black
+      // quad with no text head-on at 2.5 m (reads fine in combat + side).
+      // Hero shot needs no name tag; tags still show in combat.
+      if (b.char.tag) b.char.tag.visible = b.alive && this.stage !== 'duel' && Math.hypot(b.pos.x - p.pos.x, b.pos.z - p.pos.z) < 12;
     }
     for (const b of this.bots) if (b.seenT > 0) b.seenT -= dt;
     // plant progress bar (carrier channeling)

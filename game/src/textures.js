@@ -46,21 +46,103 @@ export function brickTex(base = '#8a4a34', mortar = '#5d4a3e') {
   streaks(g, 512, 512, 26, '#241610', .12);
   return tex(c);
 }
-// ---- cobble ground
-export function cobbleTex() {
+// seeded PRNG (mulberry32) — the floor layout is identical every load.
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// ---- cobble ground, worn: cracks, oil stains, tire marks, gravel patches.
+// Returns {map, rough} — the roughness canvas matches the stains (dark = smooth/wet).
+export function cobbleMaps() {
+  const R = rng(1337);
   const [c, g] = cv(512, 512);
+  const [rc, rg] = cv(512, 512);
   g.fillStyle = '#38332c'; g.fillRect(0, 0, 512, 512);
+  rg.fillStyle = '#e8e8e8'; rg.fillRect(0, 0, 512, 512); // base: fully rough
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-    const v = (Math.random() - .5) * 30;
+    const v = (R() - .5) * 30;
     g.fillStyle = `rgb(${118 + v | 0},${110 + v | 0},${94 + v | 0})`;
     const px = x * 64 + 3, py = y * 64 + 3, s = 58;
     g.beginPath(); g.roundRect(px, py, s, s, 9); g.fill();
     g.fillStyle = 'rgba(255,255,255,.07)';
     g.beginPath(); g.roundRect(px + 4, py + 4, s - 8, 10, 5); g.fill();
   }
+  // cracks: jagged dark polylines
+  for (let i = 0; i < 6; i++) {
+    let x = R() * 512, y = R() * 512;
+    g.strokeStyle = 'rgba(24,20,16,.6)'; g.lineWidth = 1.5 + R();
+    g.beginPath(); g.moveTo(x, y);
+    for (let s = 0; s < 10; s++) { x += (R() - .5) * 52; y += R() * 36; g.lineTo(x, y); }
+    g.stroke();
+  }
+  // oil stains: dark radial blobs (also dark = smoother on the rough map)
+  for (let i = 0; i < 4; i++) {
+    const x = R() * 512, y = R() * 512, r = 26 + R() * 44;
+    const gr = g.createRadialGradient(x, y, 2, x, y, r);
+    gr.addColorStop(0, 'rgba(12,10,10,.55)'); gr.addColorStop(1, 'rgba(12,10,10,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    const rr = rg.createRadialGradient(x, y, 2, x, y, r);
+    rr.addColorStop(0, 'rgba(40,40,40,.9)'); rr.addColorStop(1, 'rgba(40,40,40,0)');
+    rg.fillStyle = rr; rg.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // tire marks: dark curved bands
+  for (let i = 0; i < 3; i++) {
+    const x = R() * 512, y = R() * 512;
+    g.strokeStyle = 'rgba(16,14,12,.34)'; g.lineWidth = 7 + R() * 6;
+    g.beginPath(); g.moveTo(x, y);
+    g.bezierCurveTo(x + 90, y + (R() - .5) * 30, x + 190, y + (R() - .5) * 30, x + 280, y + (R() - .5) * 20);
+    g.stroke();
+  }
+  // gravel patch: dense speckle cluster
+  {
+    const x = R() * 512, y = R() * 512;
+    for (let i = 0; i < 700; i++) {
+      g.globalAlpha = .15 + R() * .3;
+      g.fillStyle = ['#6e675c', '#2c2824', '#8a8172'][i % 3];
+      g.fillRect(x + (R() - .5) * 150, y + (R() - .5) * 110, 2 + R() * 4, 2 + R() * 4);
+    }
+    g.globalAlpha = 1;
+  }
+  // large soft tone patches (worn / lighter areas)
+  for (let i = 0; i < 4; i++) {
+    const x = R() * 512, y = R() * 512, r = 60 + R() * 80;
+    const gr = g.createRadialGradient(x, y, 2, x, y, r);
+    gr.addColorStop(0, `rgba(${R() < .5 ? '200,190,170' : '30,26,22'},.10)`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
   speckle(g, 512, 512, 2200, ['#2e2a24', '#8a8074', '#5c564c'], .05, .18, 1, 5);
-  streaks(g, 512, 512, 18, '#1e1a16', .14);
-  return tex(c);
+  const map = tex(c);
+  const rough = new THREE.CanvasTexture(rc);
+  rough.wrapS = rough.wrapT = THREE.RepeatWrapping;
+  return { map, rough };
+}
+// ---- puddle decal: radial blue-grey with a bright rim (reflective water)
+export function puddleTex() {
+  const [c, g] = cv(256, 256);
+  const gr = g.createRadialGradient(128, 128, 8, 128, 128, 124);
+  gr.addColorStop(0, 'rgba(70,90,110,.9)');
+  gr.addColorStop(.75, 'rgba(50,66,84,.85)');
+  gr.addColorStop(.92, 'rgba(150,170,190,.5)');
+  gr.addColorStop(1, 'rgba(150,170,190,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(255,230,190,.25)';
+  for (let i = 0; i < 5; i++) g.fillRect(60 + Math.random() * 136, 70 + Math.random() * 110, 20 + Math.random() * 40, 3);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// ---- oil stain decal: dark radial blob
+export function stainTex() {
+  const [c, g] = cv(256, 256);
+  const gr = g.createRadialGradient(128, 128, 4, 128, 128, 124);
+  gr.addColorStop(0, 'rgba(10,8,8,.75)');
+  gr.addColorStop(.7, 'rgba(10,8,8,.45)');
+  gr.addColorStop(1, 'rgba(10,8,8,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 // ---- concrete with cracks + stains
 export function concreteTex(base = '#8d877c') {
