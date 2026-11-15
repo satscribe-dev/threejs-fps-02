@@ -163,24 +163,26 @@ export function buildBot(opts) {
     pad.position.set(0, -.01, .04); el.add(pad);
     const fo = new THREE.Mesh(new THREE.CylinderGeometry(.075, .065, .25, 10), mJacket);
     fo.position.y = -.125; fo.castShadow = true; el.add(fo);
-    const hand = new THREE.Group(); hand.position.y = -.27; hand.scale.setScalar(1.7); el.add(hand);
-    const palm = new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .04), mGlove);
-    palm.castShadow = true; hand.add(palm);
-    // gloved fingers: 2-segment HOOKS curling toward the palm (+z) so the
-    // wrap reads at 2.5 m. Oversized (scale 1.7, thick segments) on purpose.
+    const hand = new THREE.Group(); hand.position.y = -.27; el.add(hand);
+    // cuff at the wrist
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(.042, .045, .035, 10), mGlove);
+    cuff.position.y = .01; hand.add(cuff);
+    // rounded palm: flattened sphere (not a box)
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(.04, 12, 10), mGlove);
+    palm.scale.set(1, 1.2, .55); palm.position.y = -.035; palm.castShadow = true; hand.add(palm);
+    // 4 capsule fingers, 2 segments, curving toward the palm (+z)
     for (let i = 0; i < 4; i++) {
       const f = new THREE.Group();
-      f.position.set(-.024 + i * .016, -.07, 0); hand.add(f);
-      const s1 = new THREE.Mesh(new THREE.BoxGeometry(.032, .05, .032), mGlove);
-      s1.position.y = -.025; f.add(s1);
-      const j = new THREE.Group(); j.position.y = -.05; j.rotation.x = -1.1; f.add(j);
-      const s2 = new THREE.Mesh(new THREE.BoxGeometry(.03, .045, .03), mGlove);
-      s2.position.y = -.022; j.add(s2);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(.015, 8, 6), mGlove);
-      tip.position.y = -.045; j.add(tip);
+      f.position.set(-.027 + i * .018, -.075, 0); hand.add(f);
+      const s1 = new THREE.Mesh(new THREE.CapsuleGeometry(.011, .025, 4, 8), mGlove);
+      s1.position.y = -.02; f.add(s1);
+      const j = new THREE.Group(); j.position.y = -.04; j.rotation.x = -1.1; f.add(j);
+      const s2 = new THREE.Mesh(new THREE.CapsuleGeometry(.01, .02, 4, 8), mGlove);
+      s2.position.y = -.018; j.add(s2);
     }
-    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.02, .055, .02), mGlove);
-    thumb.position.set(side * .045, -.03, .01); thumb.rotation.z = side * .5; hand.add(thumb);
+    // separate thumb: capsule on the side
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(.012, .03, 4, 8), mGlove);
+    thumb.position.set(side * .05, -.03, .015); thumb.rotation.z = side * .6; thumb.rotation.x = -.3; hand.add(thumb);
     return { sh, el, hand };
   }
   // legs: hip pivot at (±.11, 1.06) -> hips space y=0
