@@ -93,10 +93,10 @@ export class Game {
     for (const b of this.bots) { b.kills = 0; b.assists = 0; b.deaths = 0; b.hs = 0; b.dmg = 0; b.cash = 800; b.seenT = 0; }
   }
   _initFx() {
-    // tracer pool
-    const tMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false });
+    // tracer pool (thin: .008 — the old .02 read as a laser beam)
+    const tMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .7, blending: THREE.AdditiveBlending, depthWrite: false });
     for (let i = 0; i < 10; i++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(.02, .02, 1), tMat.clone());
+      const m = new THREE.Mesh(new THREE.BoxGeometry(.008, .008, 1), tMat.clone());
       m.visible = false; this.scene.add(m);
       this.tracers.push({ m, life: 0 });
     }
@@ -537,7 +537,7 @@ export class Game {
       this.demoFire = false;
     } else if (s === 'buy') {
       this.state = 'buy'; this.buyT = 14; this.buyOpen = true;
-      this.player.pos.set(-28, 0, 0); this.player.yaw = -Math.PI / 2;
+      this.player.pos.set(-28, 0, 0); this.player.yaw = -Math.PI / 2; this.player.pitch = -.07;
       // allies spread out ahead of the player (not stacked on the camera)
       const spots = [[-24, -3], [-24, 3], [-22, -6], [-22, 5]];
       this.bots.filter(b => b.team === 'ember').forEach((b, i) => {

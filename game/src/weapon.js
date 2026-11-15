@@ -23,19 +23,20 @@ export function buildViewmodel(camera) {
   const camo = new THREE.MeshStandardMaterial({ map: camoTex(), roughness: .55, metalness: .25 });
   const gunmetal = new THREE.MeshStandardMaterial({ color: 0x3d4048, roughness: .42, metalness: .7 });
   const gunDark = new THREE.MeshStandardMaterial({ color: 0x232529, roughness: .5, metalness: .6 });
-  const polymer = new THREE.MeshStandardMaterial({ color: 0x38302a, roughness: .8, metalness: .05 });
-  const glove = new THREE.MeshStandardMaterial({ color: 0x6a5f45, roughness: .95 });
-  const gloveDark = new THREE.MeshStandardMaterial({ color: 0x4a4230, roughness: .95 });
+  // warm mid-brown furniture (was near-black 0x38302a: read as one flat black box in dusk)
+  const polymer = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: .7, metalness: .05 });
+  const glove = new THREE.MeshStandardMaterial({ color: 0x9c8a62, roughness: .95 });
+  const gloveDark = new THREE.MeshStandardMaterial({ color: 0x6e6046, roughness: .95 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xc8a03a, roughness: .3, metalness: .9 });
 
   const vm = new THREE.Group();
-  vm.position.set(.25, -.22, -.72);
+  vm.position.set(.25, -.22, -.77);
   vm.rotation.y = -.06;
-  vm.scale.setScalar(.72);
+  vm.scale.setScalar(.68);
   camera.add(vm);
   // warm fill light so the viewmodel reads in dusk (camera-attached, short range)
-  const vmLight = new THREE.PointLight(0xffe0b0, 1.2, 5, 1.6);
-  vmLight.position.set(.35, .35, -.4);
+  const vmLight = new THREE.PointLight(0xffe0b0, 1.9, 5, 1.6);
+  vmLight.position.set(.3, .35, -.25);
   camera.add(vmLight);
   // gun tilted slightly: stock rises into frame, muzzle dips a touch
   const gun = new THREE.Group(); gun.rotation.x = .06; vm.add(gun);
@@ -70,7 +71,7 @@ export function buildViewmodel(camera) {
   // TAPERED stock: wide butt (.11 tall) -> narrow at receiver, + cheek riser + butt pad
   const stock = new THREE.Mesh(taperedBox(.055, .11, .04, .07, .3), polymer);
   stock.position.set(0, -.01, .3); stock.rotation.x = -.04; gun.add(stock);
-  const cheek = new THREE.Mesh(new THREE.BoxGeometry(.05, .04, .16), gunDark);
+  const cheek = new THREE.Mesh(new THREE.BoxGeometry(.05, .04, .16), camo);
   cheek.position.set(0, .055, .3); gun.add(cheek);
   const buttPad = new THREE.Mesh(new THREE.BoxGeometry(.06, .12, .03), gunDark);
   buttPad.position.set(0, -.01, .46); gun.add(buttPad);
@@ -121,14 +122,14 @@ export function buildViewmodel(camera) {
     palm.castShadow = true; h.add(palm);
     const knuckle = new THREE.Mesh(new THREE.BoxGeometry(.08, .03, .04), gloveDark);
     knuckle.position.y = -.055; h.add(knuckle);
-    // 4 fingers, spaced with real gaps (width .016, spacing .021)
+    // 4 fingers, spaced with real gaps (width .02, spacing .025 — was .016/.021, unreadable at 720p)
     for (let i = 0; i < 4; i++) {
-      const f = finger(.05, .04, .016);
-      f.position.set(-.0315 + i * .021, -.07, 0);
+      const f = finger(.05, .04, .02);
+      f.position.set(-.0375 + i * .025, -.07, 0);
       f.rotation.x = -.25 - (i === 1 ? .12 : 0);
       h.add(f);
     }
-    const thumb = finger(.04, .035, .016);
+    const thumb = finger(.04, .035, .02);
     thumb.position.set(isRight ? -.05 : .05, -.02, .015);
     thumb.rotation.z = isRight ? .7 : -.7; thumb.rotation.x = -.3;
     h.add(thumb);
@@ -136,13 +137,13 @@ export function buildViewmodel(camera) {
   }
   // right hand on pistol grip (fingers curled around grip)
   const handR = hand(true);
-  handR.scale.setScalar(1.25);
-  handR.position.set(0, -.14, .16); handR.rotation.set(.5, 0, 0);
+  handR.scale.setScalar(1.35);
+  handR.position.set(0, -.14, .13); handR.rotation.set(.35, 0, 0);
   gun.add(handR);
   // left hand on foregrip (fingers curled under handguard)
   const handL = hand(false);
-  handL.scale.setScalar(1.25);
-  handL.position.set(0, -.13, -.42); handL.rotation.set(.9, 0, 0);
+  handL.scale.setScalar(1.35);
+  handL.position.set(0, -.13, -.42); handL.rotation.set(.75, 0, 0);
   gun.add(handL);
   // (no forearm cuffs — free-floating cuffs read as debris; hands end at the wrist)
 

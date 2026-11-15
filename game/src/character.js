@@ -22,11 +22,13 @@ function nameSprite(name, color) {
 export function buildBot(opts) {
   const team = opts.team;
   const jacket = team === 'ember' ? 0x9a4a26 : 0x527a9a;   // rust orange / slate blue (lightened to read at dusk)
-  const pants = team === 'ember' ? 0x4a3a2c : 0x3a4250;
-  const vest = team === 'ember' ? 0x5c3a22 : 0x3d4f63;
-  const helmet = team === 'ember' ? 0x6e3a1e : 0x41607e;
+  // lightened kit (was near-black in dusk: slate pants 0x3a4250, vest 0x3d4f63 read as silhouette)
+  const pants = team === 'ember' ? 0x6b543c : 0x4a5a78;
+  const vest = team === 'ember' ? 0x5c3a22 : 0x5a708c;
+  const helmet = team === 'ember' ? 0x6e3a1e : 0x527a9e;
   const skin = SKIN[opts.skin ?? 0];
-  const mJacket = mat(jacket), mPants = mat(pants), mVest = mat(vest, .8), mHelmet = mat(helmet, .6), mSkin = mat(skin), mBoot = mat(0x1e1a16, .7), mGun = mat(0x22242a, .5);
+  const mJacket = mat(jacket), mPants = mat(pants), mVest = mat(vest, .8), mHelmet = mat(helmet, .6), mSkin = mat(skin), mBoot = mat(0x2e2822, .7), mGun = mat(0x3a3d44, .5);
+  const mPouch = mat(0x8a7a55, .85); // tan pouches: contrast against the vest
 
   const root = new THREE.Group();           // at feet, y=0
   const hips = new THREE.Group(); hips.position.y = 1.06; root.add(hips);
@@ -44,7 +46,7 @@ export function buildBot(opts) {
   const plateB = new THREE.Mesh(new THREE.BoxGeometry(.34, .3, .05), mVest);
   plateB.position.set(0, .26, -.14); hips.add(plateB);
   for (const px of [-.11, 0, .11]) {
-    const pouch = new THREE.Mesh(new THREE.BoxGeometry(.09, .11, .05), mVest);
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(.09, .11, .05), mPouch);
     pouch.position.set(px, .08, .15); hips.add(pouch);
   }
   // shoulder pads
@@ -69,10 +71,10 @@ export function buildBot(opts) {
   // arms: shoulder pivot at (±.23, 1.48) -> in hips space y=.42
   function arm(side) {
     const sh = new THREE.Group(); sh.position.set(side * .23, .42, 0); hips.add(sh);
-    const up = new THREE.Mesh(new THREE.CylinderGeometry(.055, .05, .28, 8), mJacket);
+    const up = new THREE.Mesh(new THREE.CylinderGeometry(.068, .06, .28, 8), mJacket);
     up.position.y = -.14; up.castShadow = true; sh.add(up);
     const el = new THREE.Group(); el.position.y = -.28; sh.add(el);
-    const fo = new THREE.Mesh(new THREE.CylinderGeometry(.048, .042, .25, 8), mJacket);
+    const fo = new THREE.Mesh(new THREE.CylinderGeometry(.06, .052, .25, 8), mJacket);
     fo.position.y = -.125; fo.castShadow = true; el.add(fo);
     const hand = new THREE.Group(); hand.position.y = -.27; el.add(hand);
     const palm = new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .04), mSkin);
@@ -102,7 +104,7 @@ export function buildBot(opts) {
   const legL = leg(-1), legR = leg(1);
   // rifle across chest (multi-part, held by both hands)
   const rifle = new THREE.Group();
-  const rMat = mGun, rWood = mat(0x4a3421, .7);
+  const rMat = mGun, rWood = mat(0x6b4e2e, .7);
   const recv = new THREE.Mesh(new THREE.BoxGeometry(.07, .11, .52), rMat); recv.castShadow = true; rifle.add(recv);
   const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, .34, 8), rMat);
   barrel.rotation.x = Math.PI / 2; barrel.position.set(0, .02, .42); rifle.add(barrel);

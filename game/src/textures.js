@@ -127,9 +127,17 @@ export function stencilTex(text, fg = '#e8dcc2', bg = null, sub = '') {
   const [c, g] = cv(512, 256);
   if (bg) { g.fillStyle = bg; g.fillRect(0, 0, 512, 256); }
   g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '900 150px Arial, sans-serif';
+  // shrink the headline until the whole word fits the canvas (a clipped sign reads as a bug)
+  let fs = 150;
+  g.font = `900 ${fs}px Arial, sans-serif`;
+  while (fs > 40 && g.measureText(text).width > 470) { fs -= 6; g.font = `900 ${fs}px Arial, sans-serif`; }
   g.fillText(text, 256, sub ? 108 : 128);
-  if (sub) { g.font = '700 44px Arial, sans-serif'; g.fillText(sub, 256, 208); }
+  if (sub) {
+    let sfs = 44;
+    g.font = `700 ${sfs}px Arial, sans-serif`;
+    while (sfs > 20 && g.measureText(sub).width > 470) { sfs -= 4; g.font = `700 ${sfs}px Arial, sans-serif`; }
+    g.fillText(sub, 256, 208);
+  }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 // ---- graffiti tag (spray look)
@@ -137,7 +145,9 @@ export function graffitiTex(word, col = '#ff5a3c') {
   const [c, g] = cv(512, 256);
   g.clearRect(0, 0, 512, 256);
   g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = 'italic 900 96px Arial, sans-serif';
+  let fs = 96;
+  g.font = `italic 900 ${fs}px Arial, sans-serif`;
+  while (fs > 40 && g.measureText(word).width > 470) { fs -= 6; g.font = `italic 900 ${fs}px Arial, sans-serif`; }
   g.save(); g.translate(256, 128); g.rotate(-0.06); g.fillText(word, 0, 0); g.restore();
   g.globalAlpha = .5;
   for (let i = 0; i < 260; i++) {
@@ -154,10 +164,13 @@ export function skyTex() {
   gr.addColorStop(0, '#1d2b4a'); gr.addColorStop(.42, '#7a5a72');
   gr.addColorStop(.62, '#e07840'); gr.addColorStop(.78, '#f2a45c'); gr.addColorStop(1, '#3a2c22');
   g.fillStyle = gr; g.fillRect(0, 0, 1024, 512);
-  // sun glow — full-canvas radial gradient (no rect: a rect edge reads as a slab in the sky)
-  const sg = g.createRadialGradient(700, 330, 8, 700, 330, 430);
-  sg.addColorStop(0, 'rgba(255,236,190,.95)'); sg.addColorStop(.25, 'rgba(255,190,110,.5)'); sg.addColorStop(1, 'rgba(255,180,90,0)');
-  g.fillStyle = sg; g.fillRect(0, 0, 1024, 512);
+  // sun glow — drawn 3x (x-1024, x, x+1024) so the texture wraps seamlessly:
+  // a glow cut at the canvas edge reads as a hard vertical slab in the sky dome
+  for (const gx of [700 - 1024, 700, 700 + 1024]) {
+    const sg = g.createRadialGradient(gx, 330, 8, gx, 330, 430);
+    sg.addColorStop(0, 'rgba(255,236,190,.95)'); sg.addColorStop(.25, 'rgba(255,190,110,.5)'); sg.addColorStop(1, 'rgba(255,180,90,0)');
+    g.fillStyle = sg; g.fillRect(0, 0, 1024, 512);
+  }
   // faint stars up top
   g.fillStyle = 'rgba(255,255,255,.7)';
   for (let i = 0; i < 90; i++) g.fillRect(Math.random() * 1024, Math.random() * 150, 1.4, 1.4);

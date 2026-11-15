@@ -243,6 +243,9 @@ export function buildMap(scene) {
   sign(stencilTex('SITE A', '#e8dcc2', '#3a2c1c', 'WATER TOWER'), -26, 2.6, -15.9, 4, 2, 0);
   sign(stencilTex('SITE B', '#e8dcc2', '#3a2c1c', 'BOXCAR ROW'), 26, 2.6, 15.9, 4, 2, Math.PI);
   sign(stencilTex('DANGER', '#ff5a3c', '#1c1a18', 'HIGH VOLTAGE'), 12, 2.2, -9.9, 3, 1.5, 0);
+  // break up the mid container stack's flat south face (it fills the duel shot's left half)
+  sign(stencilTex('CL-7', '#d8cdb4', '#2c2118'), -2, 1.4, 1.34, 4, 2, 0);
+  sign(stencilTex('07', '#ffd23e', null), -2, 3.9, 1.34, 2, 1, 0);
   // big site letters painted on ground
   function groundLetter(tex, x, z, s) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .9, polygonOffset: true, polygonOffsetFactor: -1 }));
