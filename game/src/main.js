@@ -13,7 +13,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.18;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -30,7 +30,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera); // viewmodel attaches here
 
 // ---- lights: dusk sun + hemisphere + yard lamps
-const sun = new THREE.DirectionalLight(0xffb36b, 2.6);
+const sun = new THREE.DirectionalLight(0xffb36b, 3.1);
 sun.position.set(-28, 42, -20);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -38,7 +38,11 @@ sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
 sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
 sun.shadow.camera.far = 120; sun.shadow.bias = -0.0006;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x8a7a9a, 0x3a2c22, .85));
+// warm fill from the south-east so shadowed faces/bots still read at dusk (no shadows)
+const fill = new THREE.DirectionalLight(0xffd9a0, 1.2);
+fill.position.set(30, 18, 30);
+scene.add(fill);
+scene.add(new THREE.HemisphereLight(0x8a7a9a, 0x3a2c22, 1.2));
 const lampLights = [];
 function addLamp(x, z) {
   const p = new THREE.PointLight(0xffc060, 22, 26, 1.8);

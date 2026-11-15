@@ -21,19 +21,26 @@ function flashTexture() {
 
 export function buildViewmodel(camera) {
   const camo = new THREE.MeshStandardMaterial({ map: camoTex(), roughness: .55, metalness: .25 });
-  const gunmetal = new THREE.MeshStandardMaterial({ color: 0x24262c, roughness: .42, metalness: .75 });
-  const gunDark = new THREE.MeshStandardMaterial({ color: 0x141519, roughness: .5, metalness: .6 });
-  const polymer = new THREE.MeshStandardMaterial({ color: 0x3a332a, roughness: .8, metalness: .05 });
-  const glove = new THREE.MeshStandardMaterial({ color: 0x4a4433, roughness: .95 });
-  const gloveDark = new THREE.MeshStandardMaterial({ color: 0x35301f, roughness: .95 });
+  const gunmetal = new THREE.MeshStandardMaterial({ color: 0x3d4048, roughness: .42, metalness: .7 });
+  const gunDark = new THREE.MeshStandardMaterial({ color: 0x232529, roughness: .5, metalness: .6 });
+  const polymer = new THREE.MeshStandardMaterial({ color: 0x38302a, roughness: .8, metalness: .05 });
+  const glove = new THREE.MeshStandardMaterial({ color: 0x6a5f45, roughness: .95 });
+  const gloveDark = new THREE.MeshStandardMaterial({ color: 0x4a4230, roughness: .95 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xc8a03a, roughness: .3, metalness: .9 });
 
   const vm = new THREE.Group();
-  vm.position.set(.3, -.3, -.55);
+  vm.position.set(.25, -.22, -.72);
+  vm.rotation.y = -.06;
+  vm.scale.setScalar(.72);
   camera.add(vm);
+  // warm fill light so the viewmodel reads in dusk (camera-attached, short range)
+  const vmLight = new THREE.PointLight(0xffe0b0, 1.2, 5, 1.6);
+  vmLight.position.set(.35, .35, -.4);
+  camera.add(vmLight);
+  // gun tilted slightly: stock rises into frame, muzzle dips a touch
+  const gun = new THREE.Group(); gun.rotation.x = .06; vm.add(gun);
 
   // ---- rifle (built along -Z, barrel forward)
-  const gun = new THREE.Group(); vm.add(gun);
   const receiver = new THREE.Mesh(new THREE.BoxGeometry(.075, .12, .5), gunmetal);
   receiver.position.set(0, 0, -.1); receiver.castShadow = true; gun.add(receiver);
   const upper = new THREE.Mesh(new THREE.BoxGeometry(.06, .05, .46), gunDark);
@@ -129,17 +136,15 @@ export function buildViewmodel(camera) {
   }
   // right hand on pistol grip (fingers curled around grip)
   const handR = hand(true);
+  handR.scale.setScalar(1.25);
   handR.position.set(0, -.14, .16); handR.rotation.set(.5, 0, 0);
   gun.add(handR);
   // left hand on foregrip (fingers curled under handguard)
   const handL = hand(false);
+  handL.scale.setScalar(1.25);
   handL.position.set(0, -.13, -.42); handL.rotation.set(.9, 0, 0);
   gun.add(handL);
-  // forearm cuffs (sleeves) — visible at bottom of frame
-  const cuffR = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, .22, 10), new THREE.MeshStandardMaterial({ color: 0x9a4a26, roughness: .9 }));
-  cuffR.position.set(.1, -.3, .28); cuffR.rotation.x = 1.1; gun.add(cuffR);
-  const cuffL = cuffR.clone();
-  cuffL.position.set(-.06, -.32, -.32); cuffL.rotation.x = 1.2; gun.add(cuffL);
+  // (no forearm cuffs — free-floating cuffs read as debris; hands end at the wrist)
 
   // ---- shell casings pool (eject right)
   const casings = [];
@@ -152,10 +157,10 @@ export function buildViewmodel(camera) {
 
   const state = {
     group: vm, gun, flash, flashLight, handL, handR,
-    recoil: 0, swayX: 0, swayY: 0, bobT: 0, ads: 0, reloadT: 0, flashT: 0,
+    recoil: 0, swayX: 0, swayY: 0, bobT: 0, ads: 0, reloadT: 0, flashFrames: 0,
     basePos: vm.position.clone(),
     fire() {
-      this.recoil = 1; this.flashT = .055;
+      this.recoil = 1; this.flashFrames = 2;
       flash.visible = true; flash.rotation.z = Math.random() * Math.PI;
       flash.scale.setScalar(.8 + Math.random() * .5);
       flashLight.intensity = 26;
@@ -176,16 +181,16 @@ export function buildViewmodel(camera) {
       this.swayY += ((lookDY * .0012) - this.swayY) * Math.min(1, dt * 10);
       this.recoil = Math.max(0, this.recoil - dt * 7);
       this.ads += ((adsTarget ? 1 : 0) - this.ads) * Math.min(1, dt * 9);
-      if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) { flash.visible = false; flashLight.intensity = 0; } }
+      if (this.flashFrames > 0) { this.flashFrames--; if (this.flashFrames <= 0) { flash.visible = false; flashLight.intensity = 0; } }
       if (this.reloadT > 0) {
         this.reloadT -= dt;
         const p = 1 - Math.max(0, this.reloadT) / 1.5; // 0..1
         const dip = Math.sin(p * Math.PI);
-        gun.rotation.x = dip * .9; gun.position.y = -dip * .16; gun.rotation.z = dip * .35;
+        gun.rotation.x = .06 + dip * .9; gun.position.y = -dip * .16; gun.rotation.z = dip * .35;
         mag.visible = p < .35 || p > .7;
-        if (this.reloadT <= 0) { gun.rotation.set(0, 0, 0); gun.position.y = 0; mag.visible = true; }
+        if (this.reloadT <= 0) { gun.rotation.set(.06, 0, 0); gun.position.y = 0; mag.visible = true; }
       } else {
-        gun.rotation.x = this.recoil * .14;
+        gun.rotation.x = .06 + this.recoil * .14;
         gun.position.z = this.recoil * .05;
       }
       const a = this.ads;
@@ -193,7 +198,7 @@ export function buildViewmodel(camera) {
         this.basePos.x + bobX + this.swayX - a * .3,
         this.basePos.y + bobY + this.swayY + a * .09,
         this.basePos.z + this.recoil * .03 - a * .12);
-      vm.rotation.y = this.swayX * 2 - a * 0;
+      vm.rotation.y = -.06 + this.swayX * 2;
       vm.rotation.x = this.swayY * 2;
       // casings physics
       for (const c of casings) {

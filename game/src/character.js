@@ -21,10 +21,10 @@ function nameSprite(name, color) {
 // Build one bot. opts: {team:'ember'|'slate', name, skin}
 export function buildBot(opts) {
   const team = opts.team;
-  const jacket = team === 'ember' ? 0x9a4a26 : 0x3d5a6e;   // rust orange / slate blue
-  const pants = team === 'ember' ? 0x4a3a2c : 0x2e3440;
-  const vest = team === 'ember' ? 0x5c3a22 : 0x2a3542;
-  const helmet = team === 'ember' ? 0x6e3a1e : 0x2f4256;
+  const jacket = team === 'ember' ? 0x9a4a26 : 0x527a9a;   // rust orange / slate blue (lightened to read at dusk)
+  const pants = team === 'ember' ? 0x4a3a2c : 0x3a4250;
+  const vest = team === 'ember' ? 0x5c3a22 : 0x3d4f63;
+  const helmet = team === 'ember' ? 0x6e3a1e : 0x41607e;
   const skin = SKIN[opts.skin ?? 0];
   const mJacket = mat(jacket), mPants = mat(pants), mVest = mat(vest, .8), mHelmet = mat(helmet, .6), mSkin = mat(skin), mBoot = mat(0x1e1a16, .7), mGun = mat(0x22242a, .5);
 
@@ -124,6 +124,7 @@ export function buildBot(opts) {
     root, hips, neck, armL, armR, legL, legR, rifle, tag,
     name: opts.name, team, hp: 100, alive: true, phase: 0, walkSpeed: 0,
     crouch: 0, // 0..1
+    aiming: 0,
     // hit spheres (world-space, updated in update())
     spheres: [
       { part: 'head', r: .16, off: new THREE.Vector3(0, 1.70, 0) },
@@ -136,15 +137,22 @@ export function buildBot(opts) {
       this.legL.hip.rotation.x = s; this.legR.hip.rotation.x = -s;
       this.legL.knee.rotation.x = Math.max(0, -c) * .9 + this.crouch * .9;
       this.legR.knee.rotation.x = Math.max(0, c) * .9 + this.crouch * .9;
-      // arms: left holds foregrip forward, right at trigger; swing less while walking
-      this.armL.sh.rotation.x = -.9 - s * .25; this.armR.sh.rotation.x = -.75 + s * .25;
-      this.armL.el.rotation.x = -.5; this.armR.el.rotation.x = -.35;
-      this.armL.sh.rotation.z = .12; this.armR.sh.rotation.z = -.12;
+      if (this.aiming) {
+        // aim pose: both arms forward holding the rifle, no walk swing
+        this.armL.sh.rotation.x = -1.25; this.armR.sh.rotation.x = -1.15;
+        this.armL.el.rotation.x = -.5; this.armR.el.rotation.x = -.35;
+        this.armL.sh.rotation.z = .12; this.armR.sh.rotation.z = -.12;
+      } else {
+        // arms: left holds foregrip forward, right at trigger; swing less while walking
+        this.armL.sh.rotation.x = -.9 - s * .25; this.armR.sh.rotation.x = -.75 + s * .25;
+        this.armL.el.rotation.x = -.5; this.armR.el.rotation.x = -.35;
+        this.armL.sh.rotation.z = .12; this.armR.sh.rotation.z = -.12;
+      }
       this.hips.position.y = 1.06 - this.crouch * .3 + Math.abs(Math.sin(t * 9)) * .03 * this.walkSpeed;
       this.hips.rotation.x = this.crouch * .25;
     },
     setAim(on) {
-      this.armL.sh.rotation.x = -1.25; this.armR.sh.rotation.x = -1.15;
+      this.aiming = on ? 1 : 0;
       this.rifle.position.set(.05, 1.36, .24); this.rifle.rotation.x = -.02;
     },
     die() {

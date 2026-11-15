@@ -369,7 +369,7 @@ export class Game {
   spawnTracer(from, to) {
     const t = this.tracers.find(t => t.life <= 0); if (!t) return;
     const len = from.distanceTo(to);
-    t.m.visible = true; t.life = .09;
+    t.m.visible = true; t.life = 3;
     t.m.position.copy(from).lerp(to, .5);
     t.m.scale.set(1, 1, len);
     t.m.lookAt(to);
@@ -388,7 +388,7 @@ export class Game {
       this.dustVel[idx] = new THREE.Vector3(rand(-1, 1), rand(.2, 1.4), rand(-1, 1));
     }
     this.dustGeo.attributes.position.needsUpdate = true;
-    this.dustLife = .7;
+    this.dustLife = 12;
   }
   throwGrenade(kind) {
     const p = this.player;
@@ -522,33 +522,34 @@ export class Game {
     // staged states for screenshots — real game state, pre-seeded
     this.scoreE = 3; this.scoreS = 5; this.round = 9;
     this.player.cash = 2350; this.player.armour = 85; this.player.hp = 76;
-    this.player.weapons.ar = { mag: 4, reserve: 32 };
+    this.player.weapons.ar = { mag: 24, reserve: 32 };
     this.player.weapons.smg = { mag: 28, reserve: 64 };
     this.player.cur = 'ar';
     this.state = 'live'; this.roundT = 82;
     this.hud.showMenu(false);
     if (s === 'combat') {
-      this.player.pos.set(-6, 0, -2); this.player.yaw = Math.PI / 2 + .5; this.player.pitch = -.02;
+      // A-site hero: player SW of the tower, enemy in front of the tower legs
+      this.player.pos.set(-12, 0, -4); this.player.yaw = Math.PI / 4; this.player.pitch = -.01;
       const e = this.bots.find(b => b.team === 'slate');
-      e.pos.set(8, 0, -4); e.yaw = -Math.PI / 2; e.char.setAim(true);
+      e.pos.set(-21, 0, -6); e.yaw = -1.79; e.char.setAim(true);
       const e2 = this.bots.find(b => b.name === 'Marrow');
-      e2.pos.set(14, 0, 2); e2.yaw = -Math.PI / 2;
-      this.hud.killfeedAdd('Reef', 'Moth', 'HORNET SMG', false);
-      this.hud.killfeedAdd('You', 'Pell', 'LONGSHOT AR', true);
-      this.hud.radioAdd('Vex', 'Contact at Water Tower, rotating');
-      this.demoFire = true;
+      e2.pos.set(-24, 0, -16); e2.yaw = -2.36;
+      this.demoFire = false;
     } else if (s === 'buy') {
       this.state = 'buy'; this.buyT = 14; this.buyOpen = true;
       this.player.pos.set(-28, 0, 0); this.player.yaw = -Math.PI / 2;
+      // allies spread out ahead of the player (not stacked on the camera)
+      const spots = [[-24, -3], [-24, 3], [-22, -6], [-22, 5]];
+      this.bots.filter(b => b.team === 'ember').forEach((b, i) => {
+        const sp = spots[i] || [-24, 0];
+        b.pos.set(sp[0], 0, sp[1]); b.yaw = -Math.PI / 2;
+      });
       this.hud.showBuy(true, 14);
-      this.hud.killfeedAdd('Vex', 'Sorrel', 'LONGSHOT AR', false);
-      this.hud.radioAdd('Kite', 'Buy up, we hit Site A this round');
     } else if (s === 'duel') {
-      this.player.pos.set(2, 0, 6); this.player.yaw = Math.PI; this.player.pitch = 0;
+      // face-to-face: player south of enemy, both facing each other
+      this.player.pos.set(2, 0, 7); this.player.yaw = 0; this.player.pitch = 0;
       const e = this.bots.find(b => b.team === 'slate');
-      e.pos.set(2, 0, 0); e.yaw = 0; e.char.setAim(true);
-      this.hud.killfeedAdd('Rook', 'Tamsin', 'HORNET SMG', false);
-      this.hud.radioAdd('Vex', 'One close, Boxcar Row');
+      e.pos.set(2, 0, 1); e.yaw = Math.PI; e.char.setAim(true);
       this.demoFire = false;
     } else if (s === 'score') {
       this.round = 7; this.scoreE = 4; this.scoreS = 3;
@@ -556,10 +557,36 @@ export class Game {
       const stats = [[7, 2, 5, 2, 980], [6, 3, 4, 1, 840], [5, 1, 6, 0, 720], [4, 2, 5, 1, 610], [8, 1, 3, 2, 1100], [6, 2, 5, 1, 900], [5, 0, 7, 0, 650], [3, 1, 8, 0, 480], [2, 2, 9, 0, 390]];
       this.bots.forEach((b, i) => { const st = stats[i] || [1, 0, 5, 0, 200]; [b.kills, b.assists, b.deaths, b.hs, b.dmg] = st; b.cash = 2400 + i * 150; });
       this.hud.showScore(true, this.scoreRows());
-      this.hud.banner('ROUND 7 — EMBER WINS', 'Site A cleared · charge detonated');
       this.player.pos.set(-6, 0, -2); this.player.yaw = Math.PI / 2;
     }
     this.refreshHud();
+  }
+  // Re-seed transient feed lines right before a screenshot (they fade after ~6s).
+  reseedFeed() {
+    const s = this.stage;
+    this.hud.killfeedAdd('Vex', 'Sorrel', 'LONGSHOT AR', false);
+    this.hud.killfeedAdd('You', 'Brannock', 'LONGSHOT AR', true);
+    this.hud.radioAdd('Vex', s === 'buy' ? 'Buy up, we hit Site A this round' : 'Contact at Water Tower, rotating');
+    if (s === 'score') {
+      this.hud.showScore(true, this.scoreRows());
+      this.hud.banner('ROUND 7 — EMBER WINS', 'Site A cleared · charge detonated');
+    }
+    if (s === 'buy') this.hud.showBuy(true, Math.max(1, Math.ceil(this.buyT)));
+    this.player.weapons.ar.mag = 24;
+    this.refreshHud();
+  }
+  // Aim the player camera at the nearest visible enemy (used by the shoot script).
+  aimAtNearest() {
+    let best = null, bd = 1e9;
+    for (const b of this.bots) {
+      if (!b.alive || b.team === 'ember') continue;
+      const d = Math.hypot(b.pos.x - this.player.pos.x, b.pos.z - this.player.pos.z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (!best) return;
+    const dx = best.pos.x - this.player.pos.x, dz = best.pos.z - this.player.pos.z;
+    this.player.yaw = Math.atan2(-dx, -dz);
+    this.player.pitch = clamp(Math.atan2(1.35 - 1.62, Math.hypot(dx, dz)), -1.45, 1.45);
   }
   update(dt) {
     this.time += dt; this.frames++;
@@ -648,18 +675,18 @@ export class Game {
       if (s.t <= 0) { s.group.visible = false; }
     }
     this.smokes = this.smokes.filter(s => s.t > 0);
-    for (const t of this.tracers) if (t.life > 0) { t.life -= dt; t.m.material.opacity = Math.max(0, t.life / .09) * .9; if (t.life <= 0) t.m.visible = false; }
+    for (const t of this.tracers) if (t.life > 0) { t.life--; t.m.material.opacity = Math.max(0, t.life / 3) * .9; if (t.life <= 0) t.m.visible = false; }
     for (const d of this.decals) if (d.life > 0) { d.life -= dt; if (d.life <= 0) d.m.visible = false; }
     if (this.dustLife > 0) {
-      this.dustLife -= dt;
+      this.dustLife--;
       for (let i = 0; i < 240; i++) {
         const v = this.dustVel[i]; if (!v) continue;
-        this.dustPos[i * 3] += v.x * dt; this.dustPos[i * 3 + 1] += v.y * dt; this.dustPos[i * 3 + 2] += v.z * dt;
-        v.y -= 2 * dt;
+        this.dustPos[i * 3] += v.x * .05; this.dustPos[i * 3 + 1] += v.y * .05; this.dustPos[i * 3 + 2] += v.z * .05;
+        v.y -= .08;
         if (this.dustPos[i * 3 + 1] < .02) { this.dustPos[i * 3 + 1] = -10; }
       }
       this.dustGeo.attributes.position.needsUpdate = true;
-      this.dustMat.opacity = Math.max(0, this.dustLife / .7) * .7;
+      this.dustMat.opacity = Math.max(0, this.dustLife / 12) * .7;
     }
     // bots
     for (const b of this.bots) {

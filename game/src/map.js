@@ -172,11 +172,14 @@ export function buildMap(scene) {
     add('woodDark', new THREE.BoxGeometry(s * .86, s * .14, s * .86), x, s * .92, z, Math.random() * .6);
     colliders.push(boxOf(x, 0, z, s, s, s));
   }
-  // stacked crates (two high) at key cover points
+  // stacked crates (two high) at key cover points — with stencil labels
   for (const [x, z] of [[-16, -9], [9, -15], [4, 10], [-4, 17]]) {
     add('wood', new THREE.BoxGeometry(1.5, 1.4, 1.5), x, .7, z, .3);
     add('woodDark', new THREE.BoxGeometry(1.3, 1.3, 1.3), x, 2.05, z, .9);
     colliders.push(boxOf(x, 0, z, 1.5, 2.7, 1.5));
+    const st = new THREE.Mesh(new THREE.PlaneGeometry(1.1, .55),
+      new THREE.MeshStandardMaterial({ map: stencilTex('CL-7', '#2c2118'), transparent: true, roughness: .85 }));
+    st.position.set(x, .75, z + .78); st.rotation.y = .3; scene.add(st);
   }
   // barrels
   const barrelSpots = [[-25, -10], [-23, -9], [14, -18], [15, -17], [-8, 18], [26, 12], [10, 4], [-28, -12], [6, -8]];

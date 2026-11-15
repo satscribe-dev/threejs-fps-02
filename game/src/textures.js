@@ -49,10 +49,10 @@ export function brickTex(base = '#8a4a34', mortar = '#5d4a3e') {
 // ---- cobble ground
 export function cobbleTex() {
   const [c, g] = cv(512, 512);
-  g.fillStyle = '#4c463e'; g.fillRect(0, 0, 512, 512);
+  g.fillStyle = '#38332c'; g.fillRect(0, 0, 512, 512);
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-    const v = (Math.random() - .5) * 22;
-    g.fillStyle = `rgb(${96 + v | 0},${90 + v | 0},${78 + v | 0})`;
+    const v = (Math.random() - .5) * 30;
+    g.fillStyle = `rgb(${118 + v | 0},${110 + v | 0},${94 + v | 0})`;
     const px = x * 64 + 3, py = y * 64 + 3, s = 58;
     g.beginPath(); g.roundRect(px, py, s, s, 9); g.fill();
     g.fillStyle = 'rgba(255,255,255,.07)';
@@ -105,7 +105,8 @@ export function woodTex(base = '#8a6a42') {
       g.bezierCurveTo(170, yy + (Math.random() - .5) * 8, 340, yy + (Math.random() - .5) * 8, 512, yy);
       g.stroke();
     }
-    g.fillStyle = 'rgba(30,20,8,.55)'; g.fillRect(0, y, 512, 2);
+    g.fillStyle = 'rgba(30,20,8,.85)'; g.fillRect(0, y, 512, 3);
+    g.fillStyle = 'rgba(255,230,180,.12)'; g.fillRect(0, y + 3, 512, 2);
   }
   speckle(g, 512, 512, 900, ['#5e4426', '#a8875a'], .05, .15, 1, 4);
   return tex(c);
@@ -153,10 +154,10 @@ export function skyTex() {
   gr.addColorStop(0, '#1d2b4a'); gr.addColorStop(.42, '#7a5a72');
   gr.addColorStop(.62, '#e07840'); gr.addColorStop(.78, '#f2a45c'); gr.addColorStop(1, '#3a2c22');
   g.fillStyle = gr; g.fillRect(0, 0, 1024, 512);
-  // sun glow
-  const sg = g.createRadialGradient(700, 330, 8, 700, 330, 150);
-  sg.addColorStop(0, 'rgba(255,236,190,.95)'); sg.addColorStop(.25, 'rgba(255,190,110,.55)'); sg.addColorStop(1, 'rgba(255,180,90,0)');
-  g.fillStyle = sg; g.fillRect(480, 130, 440, 400);
+  // sun glow — full-canvas radial gradient (no rect: a rect edge reads as a slab in the sky)
+  const sg = g.createRadialGradient(700, 330, 8, 700, 330, 430);
+  sg.addColorStop(0, 'rgba(255,236,190,.95)'); sg.addColorStop(.25, 'rgba(255,190,110,.5)'); sg.addColorStop(1, 'rgba(255,180,90,0)');
+  g.fillStyle = sg; g.fillRect(0, 0, 1024, 512);
   // faint stars up top
   g.fillStyle = 'rgba(255,255,255,.7)';
   for (let i = 0; i < 90; i++) g.fillRect(Math.random() * 1024, Math.random() * 150, 1.4, 1.4);
