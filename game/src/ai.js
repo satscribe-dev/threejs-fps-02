@@ -89,6 +89,7 @@ export class Bot {
   damage(amount, from, isHead) {
     if (!this.alive) return;
     this.hp -= amount;
+    this.char.hit();
     if (this.hp <= 0) {
       this.hp = 0; this.alive = false;
       this.char.die();

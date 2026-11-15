@@ -277,6 +277,7 @@ export class Game {
     const to = new THREE.Vector3(tp.x, 1.3, tp.z);
     const dir = to.clone().sub(from).normalize();
     this.spawnTracer(from, to);
+    if (bot.char && bot.char.shootKick) bot.char.shootKick();
     this.audio.enemyShot(Math.hypot(tp.x - this.player.pos.x, tp.z - this.player.pos.z));
     const d = from.distanceTo(to);
     const moving = vis.isPlayer ? (this.keys['KeyW'] || this.keys['KeyA'] || this.keys['KeyS'] || this.keys['KeyD']) : false;
@@ -539,17 +540,19 @@ export class Game {
       this.state = 'buy'; this.buyT = 14; this.buyOpen = true;
       this.player.pos.set(-28, 0, 0); this.player.yaw = -Math.PI / 2; this.player.pitch = -.07;
       // allies spread out ahead of the player (not stacked on the camera)
+      // yaw +π/2 = facing WEST, toward the player/camera (was -π/2: backs to camera)
       const spots = [[-24, -3], [-24, 3], [-22, -6], [-22, 5]];
       this.bots.filter(b => b.team === 'ember').forEach((b, i) => {
         const sp = spots[i] || [-24, 0];
-        b.pos.set(sp[0], 0, sp[1]); b.yaw = -Math.PI / 2;
+        b.pos.set(sp[0], 0, sp[1]); b.yaw = Math.PI / 2;
       });
       this.hud.showBuy(true, 14);
     } else if (s === 'duel') {
       // face-to-face: player south of enemy, both facing each other
+      // 4 m apart so the face reads at 720p (was 6 m: face ~12 px, unreadable)
       this.player.pos.set(2, 0, 7); this.player.yaw = 0; this.player.pitch = 0;
       const e = this.bots.find(b => b.team === 'slate');
-      e.pos.set(2, 0, 1); e.yaw = Math.PI; e.char.setAim(true);
+      e.pos.set(2, 0, 3); e.yaw = Math.PI; e.char.setAim(true);
       this.demoFire = false;
     } else if (s === 'score') {
       this.round = 7; this.scoreE = 4; this.scoreS = 3;
